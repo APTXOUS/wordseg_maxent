@@ -3,6 +3,8 @@
 
 import codecs
 import sys
+from tqdm import tqdm
+from maxent import MaxentModel
 
 def tag4_training_set(file_name,file_name_store):
     fin = codecs.open(file_name, 'r', 'utf-8')
@@ -15,7 +17,7 @@ def tag4_training_set(file_name,file_name_store):
  
     tag_words_list = []
     i = 0
-    for word in words:
+    for word in tqdm(words):
         i += 1
         wordlen=len(word)
         if(i % 100 == 0): 
@@ -68,14 +70,18 @@ def get_class(char):
     ar_num = [u'0', u'1', u'2', u'3', u'4', u'5', u'6', u'7', u'8', u'9', u'.', u'０',u'１',u'２',u'３',u'４',u'５',u'６',u'７',u'８',u'９']
     date = [u'日', u'年', u'月']
     letter = ['a', 'b', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'g', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+    level=[u'级', u'届']
     if char in zh_num or char in ar_num:
         return '1'
     elif char in date:
         return '2'
     elif char in letter:
         return '3'
+    elif char in level:
+        return '5'
     else:
         return '4'
+        
 
 
 # 获取训练集特征
@@ -85,10 +91,11 @@ def get_event(tag_file_path, event_file_path):
     contents = contents.replace(u'\r', u'')
     contents = contents.replace(u'\n', u'')
     words_len = len(contents)/3
+    
     event_list = []
  
     index = range(0, words_len)
-    for i in index:
+    for i in tqdm(index):
         pre_char = get_near_char(contents, i-1, 3)
         pre_pre_char = get_near_char(contents, i-2, 3)
         cur_char = get_near_char(contents, i, 3)
@@ -107,13 +114,15 @@ def get_event(tag_file_path, event_file_path):
             + 'C-2=' + pre_pre_char + 'C-1=' + pre_char + 'C0=' + cur_char + ' '
             + 'C-1=' + pre_char + 'C0=' + cur_char + 'C1=' + next_char + ' '
             + 'C0=' + cur_char + 'C1=' + next_char + 'C2=' + next_next_char + ' '
+            + 'C-2=' + pre_pre_char + 'C-1=' + pre_char + 'C0=' + cur_char +'C1=' +next_char+' '
+            + 'C-1=' + pre_char + 'C0=' + cur_char + 'C1=' + next_char +'C2=' +next_next_char+' '
             + 'Pu=' + isPu(cur_char) + ' '
             + 'Tc-2=' + get_class(pre_pre_char) + 'Tc-1=' + get_class(pre_char)
             + 'Tc0=' + get_class(cur_char) + 'Tc1=' + get_class(next_char)
             + 'Tc2=' + get_class(next_next_char) + ' '
             + '\r')
- 
- 
+
+
     # events = ''.join(event_list)
     fout = codecs.open(event_file_path, 'w', 'utf-8')
     for event in event_list:
@@ -121,27 +130,56 @@ def get_event(tag_file_path, event_file_path):
     fout.close()
  
 
+def training(feature_file_path, trained_model_file, times):
+    m = MaxentModel()
+    fin = codecs.open(feature_file_path, 'r', 'utf-8')
+    all_list = []
+    print 'begin add_event'
+
+
+    m.begin_add_event()
+    for line in tqdm(fin):
+        line = line.rstrip()
+        line_list = line.split(' ')
+        str_list = []
+        for item in line_list:
+            str_list.append(item.encode('utf-8'))
+        all_list.append(str_list)
+        m.add_event(str_list[1:], str_list[0], 1)
+    m.end_add_event()
+
+
+    print 'end add_event'
+
+    print 'begin training'
+    m.train(times, "gis")
+    print 'end training'
+
+    m.save(trained_model_file)
+    return all_list
+
+
 def main():
     args = sys.argv[1:]
-    if len(args) < 3: 
-        print " "+args[0]+" "+args[1]+" "
-        print 'Usage: python ' + sys.argv[0] + ' training_file test_file result_file'
-        exit(-1)
     training_file = args[0]
-    test_file = args[1]
-    result_file = args[2]
+    result_file = args[1]
+    time=args[2]
+
+    print training_file 
+    print result_file
+    print time
  
     tag_training_set_file=training_file +'.tag'
-    # 标注训练
     tag4_training_set(training_file, tag_training_set_file)
-    #tag6_training_set(training_file, tag_training_set_file)
     print 'tag train set succeed'
  
-    # 获取训练集特征
     feature_file_path = training_file + ".feature"
     get_event(tag_training_set_file, feature_file_path)
     print 'get training set feature succeed'
 
+    trained_model_file= result_file
+    training(feature_file_path, trained_model_file, int(time))
+    print 'generate model succeed'
 
 
 if __name__=="__main__":
