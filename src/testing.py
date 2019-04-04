@@ -60,7 +60,8 @@ def max_prob(label_prob_list):
 def get_feature(test_file_path, feature_file_path):
     f = codecs.open(test_file_path, 'r', 'utf-8')
     contents = f.read()
-    contents_list = contents.split('\r\n')
+    contents_list = contents.split('\r')
+    contents_list = contents.split('\n')
     contents_list.remove('')
     contents_list.remove('')
  
@@ -76,8 +77,9 @@ def get_feature(test_file_path, feature_file_path):
             cur_char = get_near_char(line, i, 1)
             next_char = get_near_char(line, i+1, 1)
             next_next_char = get_near_char(line, i+2, 1)
-            feature_list.append(
-                  'C-2=' + pre_pre_char + ' ' + 'C-1=' + pre_char + ' '
+            fout.write(
+                  'C-2=' + pre_pre_char + ' ' 
+                + 'C-1=' + pre_char + ' '
                 + 'C0=' + cur_char + ' '
                 + 'C1=' + next_char + ' ' + 'C2=' + next_next_char + ' '
                 + 'C-2=' + pre_pre_char + 'C-1=' + pre_char + ' '
@@ -95,14 +97,10 @@ def get_feature(test_file_path, feature_file_path):
                 + 'Tc0=' + get_class(cur_char) + 'Tc1=' + get_class(next_char)
                 + 'Tc2=' + get_class(next_next_char) + ' '
                 + '\r')
- 
-        for item in feature_list:
-            fout.write(item)
+
         fout.write('split\r\n')
- 
     fout.close()
  
-    return feature_list
 
 
 # 标注测试集
@@ -132,7 +130,6 @@ def tag_test(test_feature_file, trained_model_file, tag_test_set_file):
         fout.write(new_tag.decode('utf-8'))
         pre_tag = label
  
-    return feature_list
 
 
 def tag4_to_words(tag_training_set_file, result_file):

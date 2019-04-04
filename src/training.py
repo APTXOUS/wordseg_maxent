@@ -4,24 +4,24 @@
 import codecs
 import sys
 from tqdm import tqdm
-from maxent import MaxentModel
+#from maxent import MaxentModel
 
 def tag4_training_set(file_name,file_name_store):
     fin = codecs.open(file_name, 'r', 'utf-8')
-    contents = fin.read()
-    contents = contents.replace(u'\r', u'')
-    contents = contents.replace(u'\n', u'')
+    file_origin = fin.read()
+    file_origin = file_origin.replace(u'\r', u' ')
+    file_origin = file_origin.replace(u'\n', u' ')
     
-    words = contents.split(' ')
+    words = file_origin.split(' ')
     print len(words)
- 
-    tag_words_list = []
+    fout = codecs.open(file_name_store, 'w', 'utf-8')
+
     i = 0
     for word in tqdm(words):
         i += 1
         wordlen=len(word)
         if(i % 100 == 0): 
-            tag_words_list.append(u'\r')
+            fout.write(u'\r')
         if(wordlen == 0):
             continue
         if(wordlen == 1):
@@ -34,29 +34,23 @@ def tag4_training_set(file_name,file_name_store):
             for mid_word in mid_words:
                 tag_word += (mid_word + '/M')
             tag_word += (word[-1] + '/E')
- 
-        tag_words_list.append(tag_word)
- 
-    tag_words = ''.join(tag_words_list)
-    fout = codecs.open(file_name_store, 'w', 'utf-8')
-    fout.write(tag_words)
+        fout.write(tag_word)
     fout.close()
- 
-    return (words, tag_words_list)
 
-def get_near_char(contents, i, times):
-    words_len = len(contents) / times;
+
+def get_near_char(file_origin, i, times):
+    words_len = len(file_origin) / times;
     if (i < 0 or i > words_len - 1):
         return '_'
     else:
-        return contents[i*times]
+        return file_origin[i*times]
  
-def get_near_tag(contents, i ,times):
-    words_len = len(contents) / times;
+def get_near_tag(file_origin, i ,times):
+    words_len = len(file_origin) / times;
     if (i < 0 or i > words_len - 1):
         return '_'
     else:
-        return contents[i*times*2]
+        return file_origin[i*times*2]
  
 def isPu(char):
     punctuation = [u'，', u'。', u'？', u'！', u'；', u'－－', u'、', u'——', u'（', u'）', u'《', u'》', u'：', u'“', u'”', u'’', u'‘']
@@ -85,27 +79,31 @@ def get_class(char):
 
 
 # 获取训练集特征
-def get_event(tag_file_path, event_file_path):
+def get_feature(tag_file_path, event_file_path):
     f = codecs.open(tag_file_path, 'r', 'utf-8')
-    contents = f.read()
-    contents = contents.replace(u'\r', u'')
-    contents = contents.replace(u'\n', u'')
-    words_len = len(contents)/3
+    file_origin = f.read()
+    file_origin = file_origin.replace(u'\r', u'')
+    file_origin = file_origin.replace(u'\n', u'')
+    words_len = len(file_origin)/3
     
     event_list = []
+
+    fout = codecs.open(event_file_path, 'w', 'utf-8')
  
     index = range(0, words_len)
     for i in tqdm(index):
-        pre_char = get_near_char(contents, i-1, 3)
-        pre_pre_char = get_near_char(contents, i-2, 3)
-        cur_char = get_near_char(contents, i, 3)
-        next_char = get_near_char(contents, i+1, 3)
-        next_next_char = get_near_char(contents, i+2, 3)
-        event_list.append(
-            contents[i*3+2] + ' '
-            + 'C-2='+pre_pre_char + ' ' + 'C-1='+pre_char + ' '
-            + ' ' + 'C0=' + cur_char + ' '
-            + 'C1=' + next_char + ' ' + 'C2=' + next_next_char + ' '
+        pre_char = get_near_char(file_origin, i-1, 3)
+        pre_pre_char = get_near_char(file_origin, i-2, 3)
+        cur_char = get_near_char(file_origin, i, 3)
+        next_char = get_near_char(file_origin, i+1, 3)
+        next_next_char = get_near_char(file_origin, i+2, 3)
+        fout.write(
+            file_origin[i*3+2] + ' '
+            + 'C-2='+pre_pre_char + ' ' 
+            + 'C-1='+pre_char + ' '
+            + 'C0=' + cur_char + ' '
+            + 'C1=' + next_char + ' ' 
+            + 'C2=' + next_next_char + ' '
             + 'C-2=' + pre_pre_char + 'C-1=' + pre_char + ' '
             + 'C-1=' + pre_char + 'C0=' + cur_char + ' '
             + 'C0=' + cur_char + 'C1=' + next_char + ' '
@@ -121,18 +119,12 @@ def get_event(tag_file_path, event_file_path):
             + 'Tc0=' + get_class(cur_char) + 'Tc1=' + get_class(next_char)
             + 'Tc2=' + get_class(next_next_char) + ' '
             + '\r')
-
-
-    # events = ''.join(event_list)
-    fout = codecs.open(event_file_path, 'w', 'utf-8')
-    for event in event_list:
-        fout.write(event)
     fout.close()
  
 
-def training(feature_file_path, trained_model_file, times):
+def training(file_feature_name, file_model_name, times):
     m = MaxentModel()
-    fin = codecs.open(feature_file_path, 'r', 'utf-8')
+    fin = codecs.open(file_feature_name, 'r', 'utf-8')
     all_list = []
     print 'begin add_event'
 
@@ -155,7 +147,7 @@ def training(feature_file_path, trained_model_file, times):
     m.train(times, "gis")
     print 'end training'
 
-    m.save(trained_model_file)
+    m.save(file_model_name)
     return all_list
 
 
@@ -173,12 +165,12 @@ def main():
     tag4_training_set(training_file, tag_training_set_file)
     print 'tag train set succeed'
  
-    feature_file_path = training_file + ".feature"
-    get_event(tag_training_set_file, feature_file_path)
+    file_feature_name = training_file + ".feature"
+    get_feature(tag_training_set_file, file_feature_name)
     print 'get training set feature succeed'
 
-    trained_model_file= result_file
-    training(feature_file_path, trained_model_file, int(time))
+    file_model_name= result_file
+    training(file_feature_name, file_model_name, int(time))
     print 'generate model succeed'
 
 
